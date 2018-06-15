@@ -19,7 +19,9 @@ from pygments.styles import get_style_by_name
 from pygments.token import Token
 
 from prompt_toolkit import prompt
-from prompt_toolkit.renderer import print_formatted_text as renderer_print_formatted_text
+from prompt_toolkit.renderer import (
+    print_formatted_text as renderer_print_formatted_text
+)
 from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.lexers import PygmentsLexer
@@ -31,19 +33,15 @@ from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
 
 
-
 def get_size():
     x, y = subprocess.check_output(["stty", "size"]).decode("utf8").split()
     return int(x), int(y)
 
 
-sql_keywords = [
-    "SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT",
-]
+sql_keywords = ["SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT"]
 
 
 class SQLCompleter(Completer):
-
     def __init__(self, tables):
         super().__init__()
         self.tables = tables
@@ -54,21 +52,16 @@ class SQLCompleter(Completer):
         if word:
             for keyword in sql_keywords:
                 if keyword.lower().startswith(word.lower()):
-                    yield Completion(
-                        keyword,
-                        start_position=-len(word),
-                    )
+                    yield Completion(keyword, start_position=-len(word))
         else:
             _, __, previous = document.text[:-1].rpartition(" ")
             if previous.lower() == "from":
                 for tbl in self.tables:
-                    yield Completion(
-                        tbl["index"], start_position=0,
-                    )
+                    yield Completion(tbl["index"], start_position=0)
 
 
 class SQLLexer(SqlLexer):
-    def get_tokens_unprocessed(self, text, stack=('root',)):
+    def get_tokens_unprocessed(self, text, stack=("root",)):
         for i, typ, val in super().get_tokens_unprocessed(text, stack=stack):
             if typ == Token.Literal.String.Symbol:
                 yield i, Token.Literal.String.Double, val
@@ -77,7 +70,6 @@ class SQLLexer(SqlLexer):
 
 
 class SQLValidator(Validator):
-
     def validate(self, document):
         if not document.text.strip():
             return
@@ -87,33 +79,18 @@ class SQLValidator(Validator):
             if "from" not in result:
                 raise pyparsing.ParseException(text, len(text), "Expecting from")
         except pyparsing.ParseException as exc:
-            raise ValidationError(
-                message=str(exc),
-                cursor_position=exc.args[1],
-            )
+            raise ValidationError(message=str(exc), cursor_position=exc.args[1])
 
 
 def get_query(where):
     if where is None:
-        return {
-            "match_all": {}
-        }
+        return {"match_all": {}}
 
     if "eq" in where:
         left, right = where["eq"]
-        return {
-            "term": {
-                left: right,
-            }
-        }
+        return {"term": {left: right}}
     elif "and" in where:
-        return {
-            "bool":{
-                "must": [
-                    get_query(x) for x in where["and"]
-                ]
-            }
-        }
+        return {"bool": {"must": [get_query(x) for x in where["and"]]}}
 
 
 def get_source(select):
@@ -134,19 +111,14 @@ def translate_to_elastic_query(ir_dct):
 
 
 @click.command()
-@click.option(
-    "--url",
-    type=str,
-    required=True,
-)
+@click.option("--url", type=str, required=True)
 def main(url):
     client = elasticsearch.Elasticsearch(hosts=url)
-    completer = SQLCompleter(
-        tables = client.cat.indices(format="json"),
-    )
+    completer = SQLCompleter(tables=client.cat.indices(format="json"))
     json_lexer = JsonLexer()
     bindings = KeyBindings()
     style = style_from_pygments_cls(get_style_by_name("monokai"))
+
     @bindings.add(" ")
     def _(event):
         buffer = event.app.current_buffer
@@ -175,9 +147,7 @@ def main(url):
 
     while True:
         try:
-            stmt = session.prompt(
-                'eSQL> ',
-            ).rstrip(';')
+            stmt = session.prompt("eSQL> ").rstrip(";")
             if not stmt.strip():
                 continue
 
@@ -187,29 +157,21 @@ def main(url):
             dump = json.dumps(result["hits"]["hits"], indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
-            if get_size()[1] < dump.count("\n") -1:
+            if get_size()[1] < dump.count("\n") - 1:
                 bytesio = BytesIO()
                 bytesio.encoding = "UTF-8"
                 output = Vt100_Output(bytesio, get_size)
                 renderer_print_formatted_text(
-                    output,
-                    PygmentsTokens(tokens),
-                    style=style,
+                    output, PygmentsTokens(tokens), style=style
                 )
 
-                subprocess.run(
-                    ["less", "-R"],
-                    input=bytesio.getvalue(),
-                )
+                subprocess.run(["less", "-R"], input=bytesio.getvalue())
             else:
-                print_formatted_text(
-                    PygmentsTokens(tokens),
-                    style=style,
-                )
+                print_formatted_text(PygmentsTokens(tokens), style=style)
 
         except EOFError:
             break
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
