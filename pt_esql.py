@@ -11,15 +11,15 @@ import pyparsing
 import Levenshtein
 import elasticsearch
 
-from pygments.lexers import SqlLexer
+from pygments.lexers import SqlLexer, JsonLexer
 
-from prompt_toolkit import prompt
+from prompt_toolkit import prompt, print_formatted_text
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.validation import Validator
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
 
 
@@ -69,7 +69,7 @@ def translate_to_elastic_query(ir_dct):
 )
 def main(url):
     client = elasticsearch.Elasticsearch(hosts=url)
-
+    json_lexer = JsonLexer()
     bindings = KeyBindings()
 
     @bindings.add(" ")
@@ -107,7 +107,9 @@ def main(url):
             ir_dct = moz_sql_parser.parse(stmt)
             query = translate_to_elastic_query(ir_dct)
             result = client.search(body=query)
-            print(json.dumps(result["hits"]["hits"], indent=4))
+            dump = json.dumps(result["hits"]["hits"], indent=4)
+            tokens = list(json_lexer.get_tokens(dump))
+            print_formatted_text(PygmentsTokens(tokens))
 
         except EOFError:
             break
