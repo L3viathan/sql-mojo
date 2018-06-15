@@ -24,7 +24,7 @@ from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession, print_formatted_text
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.formatted_text import HTML, PygmentsTokens
@@ -37,11 +37,34 @@ def get_size():
     return int(x), int(y)
 
 
-completions = [
+sql_keywords = [
     "SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT",
 ]
 
-sql_completer =  WordCompleter(completions, ignore_case=True)
+
+class SQLCompleter(Completer):
+
+    def __init__(self, tables):
+        super().__init__()
+        self.tables = tables
+
+    def get_completions(self, document, complete_event):
+        word = document.get_word_before_cursor()
+
+        if word:
+            for keyword in sql_keywords:
+                if keyword.lower().startswith(word.lower()):
+                    yield Completion(
+                        keyword,
+                        start_position=-len(word),
+                    )
+        else:
+            _, __, previous = document.text[:-1].rpartition(" ")
+            if previous.lower() == "from":
+                for tbl in self.tables:
+                    yield Completion(
+                        tbl["index"], start_position=0,
+                    )
 
 
 class SQLLexer(SqlLexer):
@@ -118,6 +141,9 @@ def translate_to_elastic_query(ir_dct):
 )
 def main(url):
     client = elasticsearch.Elasticsearch(hosts=url)
+    completer = SQLCompleter(
+        tables = client.cat.indices(format="json"),
+    )
     json_lexer = JsonLexer()
     bindings = KeyBindings()
     style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -126,8 +152,8 @@ def main(url):
         buffer = event.app.current_buffer
         word = buffer.document.get_word_before_cursor()
         if word is not None:
-            for comp in completions:
-                if Levenshtein.distance(word.lower(), comp.lower()) < 2:
+            for comp in sql_keywords:
+                if Levenshtein.ratio(word.lower(), comp.lower()) >= 0.75:
                     buffer.delete_before_cursor(count=len(word))
                     buffer.insert_text(comp)
                     break
@@ -137,7 +163,7 @@ def main(url):
     session = PromptSession(
         ">",
         lexer=PygmentsLexer(SQLLexer),
-        completer=sql_completer,
+        completer=completer,
         complete_while_typing=False,
         history=history,
         validator=SQLValidator(),
@@ -150,7 +176,7 @@ def main(url):
     while True:
         try:
             stmt = session.prompt(
-                'Give me some input:\n > ',
+                'eSQL> ',
             ).rstrip(';')
             if not stmt.strip():
                 continue
