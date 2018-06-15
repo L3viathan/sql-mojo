@@ -12,8 +12,10 @@ import Levenshtein
 import elasticsearch
 
 from pygments.lexers import SqlLexer, JsonLexer
+from pygments.styles import get_style_by_name
 
 from prompt_toolkit import prompt, print_formatted_text
+from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -79,7 +81,7 @@ def main(url):
     client = elasticsearch.Elasticsearch(hosts=url)
     json_lexer = JsonLexer()
     bindings = KeyBindings()
-
+    style = style_from_pygments_cls(get_style_by_name("monokai"))
     @bindings.add(" ")
     def _(event):
         buffer = event.app.current_buffer
@@ -103,6 +105,7 @@ def main(url):
         validate_while_typing=False,
         bottom_toolbar=HTML(f"URL: <b>{url}</b>"),
         key_bindings=bindings,
+        style=style,
     )
 
     while True:
@@ -117,7 +120,11 @@ def main(url):
             result = client.search(body=query)
             dump = json.dumps(result["hits"]["hits"], indent=4)
             tokens = list(json_lexer.get_tokens(dump))
-            print_formatted_text(PygmentsTokens(tokens))
+
+            print_formatted_text(
+                PygmentsTokens(tokens),
+                style=style,
+            )
 
         except EOFError:
             break
