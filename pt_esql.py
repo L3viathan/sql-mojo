@@ -3,11 +3,17 @@
 Demonstration of how the input can be indented.
 """
 
+from pygments.lexers import SqlLexer
+
 from prompt_toolkit import prompt
+from prompt_toolkit.lexers import PygmentsLexer
 
 
 def main():
-    stmt = prompt('Give me some input:\n > ')
+    stmt = prompt(
+        'Give me some input:\n > ',
+        lexer=PygmentsLexer(SqlLexer),
+    )
     print(f"You said: {stmt}")
 
 
