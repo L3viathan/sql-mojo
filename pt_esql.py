@@ -9,6 +9,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.history import FileHistory
 
 
 sql_completer =  WordCompleter(
@@ -20,11 +21,14 @@ sql_completer =  WordCompleter(
 
 
 def main():
+    history = FileHistory(".pt_esql_history")
+
     session = PromptSession(
         ">",
         lexer=PygmentsLexer(SqlLexer),
         completer=sql_completer,
         complete_while_typing=False,
+        history=history,
     )
 
     while True:
