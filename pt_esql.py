@@ -47,16 +47,24 @@ validator = Validator.from_callable(
 )
 
 
-def get_query(select):
-    if isinstance(select, str):
+def get_query(where):
+    if where is None:
         return {
             "match_all": {}
-        }
+    }
+
+def get_source(select):
+    if isinstance(select, dict):
+        return [select["value"]]
+    else:
+        return [s["value"] for s in select]
 
 
 def translate_to_elastic_query(ir_dct):
     body = {}
-    body["query"] = get_query(ir_dct["select"])
+    body["query"] = get_query(ir_dct.get("where"))
+    if ir_dct["select"] != "*":
+        body["_source"] = get_source(ir_dct["select"])
     body["size"] = ir_dct.get("limit", 10)
     return body
 
