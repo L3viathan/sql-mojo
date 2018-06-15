@@ -7,15 +7,22 @@ from pygments.lexers import SqlLexer
 
 from prompt_toolkit import prompt
 from prompt_toolkit.lexers import PygmentsLexer
-
+from prompt_toolkit.shortcuts import PromptSession
 
 def main():
-    stmt = prompt(
-        'Give me some input:\n > ',
+    session = PromptSession(
+        ">",
         lexer=PygmentsLexer(SqlLexer),
     )
-    print(f"You said: {stmt}")
 
+    while True:
+        try:
+            stmt = session.prompt(
+                'Give me some input:\n > ',
+            )
+            print(f"You said: {stmt}")
+        except EOFError:
+            break
 
 if __name__ == '__main__':
     main()
