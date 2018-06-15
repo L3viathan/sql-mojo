@@ -4,6 +4,9 @@ Demonstration of how the input can be indented.
 """
 
 import json
+import subprocess
+from contextlib import redirect_stdout
+from io import BytesIO
 
 import click
 import moz_sql_parser
@@ -14,15 +17,22 @@ import elasticsearch
 from pygments.lexers import SqlLexer, JsonLexer
 from pygments.styles import get_style_by_name
 
-from prompt_toolkit import prompt, print_formatted_text
+from prompt_toolkit import prompt
+from prompt_toolkit.renderer import print_formatted_text as renderer_print_formatted_text
+from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.shortcuts import PromptSession
+from prompt_toolkit.shortcuts import PromptSession, print_formatted_text
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
+
+
+def get_size():
+    x, y = subprocess.check_output(["stty", "size"]).decode("utf8").split()
+    return int(x), int(y)
 
 
 completions = [
@@ -119,10 +129,25 @@ def main(url):
             dump = json.dumps(result["hits"]["hits"], indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
-            print_formatted_text(
-                PygmentsTokens(tokens),
-                style=style,
-            )
+            if get_size()[1] < dump.count("\n") -1:
+                bytesio = BytesIO()
+                bytesio.encoding = "UTF-8"
+                output = Vt100_Output(bytesio, get_size)
+                renderer_print_formatted_text(
+                    output,
+                    PygmentsTokens(tokens),
+                    style=style,
+                )
+
+                subprocess.run(
+                    ["less", "-R"],
+                    input=bytesio.getvalue(),
+                )
+            else:
+                print_formatted_text(
+                    PygmentsTokens(tokens),
+                    style=style,
+                )
 
         except EOFError:
             break
