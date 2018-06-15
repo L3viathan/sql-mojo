@@ -83,6 +83,15 @@ def get_query(where):
                 left: right,
             }
         }
+    elif "and" in where:
+        return {
+            "bool":{
+                "must": [
+                    get_query(x) for x in where["and"]
+                ]
+            }
+        }
+
 
 def get_source(select):
     if isinstance(select, dict):
