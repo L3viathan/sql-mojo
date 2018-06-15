@@ -45,6 +45,8 @@ sql_completer =  WordCompleter(completions, ignore_case=True)
 class SQLValidator(Validator):
 
     def validate(self, document):
+        if not document.text.strip():
+            return
         text = document.text.rstrip(";")
         try:
             result = moz_sql_parser.parse(text)
@@ -121,6 +123,8 @@ def main(url):
             stmt = session.prompt(
                 'Give me some input:\n > ',
             ).rstrip(';')
+            if not stmt.strip():
+                continue
 
             print(f"Query: {stmt}")
             ir_dct = moz_sql_parser.parse(stmt)
