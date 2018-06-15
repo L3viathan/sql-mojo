@@ -20,7 +20,7 @@ from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.validation import Validator
+from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
 
@@ -32,21 +32,19 @@ completions = [
 sql_completer =  WordCompleter(completions, ignore_case=True)
 
 
-def is_valid_sql(text):
-    text = text.rstrip(";")
-    try:
-        moz_sql_parser.parse(text)
-    except pyparsing.ParseException:
-        return False
+class SQLValidator(Validator):
 
-    return True
-
-
-validator = Validator.from_callable(
-    is_valid_sql,
-    error_message="Syntax Error: Invalid SQL Statement",
-    move_cursor_to_end=True,
-)
+    def validate(self, document):
+        text = document.text.rstrip(";")
+        try:
+            result = moz_sql_parser.parse(text)
+            if "from" not in result:
+                raise pyparsing.ParseException(text, len(text), "Expecting from")
+        except pyparsing.ParseException as exc:
+            raise ValidationError(
+                message=str(exc),
+                cursor_position=exc.args[1],
+            )
 
 
 def get_query(where):
@@ -101,7 +99,7 @@ def main(url):
         completer=sql_completer,
         complete_while_typing=False,
         history=history,
-        validator=validator,
+        validator=SQLValidator(),
         validate_while_typing=False,
         bottom_toolbar=HTML(f"URL: <b>{url}</b>"),
         key_bindings=bindings,
