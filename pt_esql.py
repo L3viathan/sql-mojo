@@ -74,7 +74,15 @@ def get_query(where):
     if where is None:
         return {
             "match_all": {}
-    }
+        }
+
+    if "eq" in where:
+        left, right = where["eq"]
+        return {
+            "term": {
+                left: right,
+            }
+        }
 
 def get_source(select):
     if isinstance(select, dict):
