@@ -3,10 +3,13 @@
 Demonstration of how the input can be indented.
 """
 
+import json
+
 import click
 import moz_sql_parser
 import pyparsing
 import Levenshtein
+import elasticsearch
 
 from pygments.lexers import SqlLexer
 
@@ -21,7 +24,7 @@ from prompt_toolkit.key_binding import KeyBindings
 
 
 completions = [
-    "SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR",
+    "SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT",
 ]
 
 sql_completer =  WordCompleter(completions, ignore_case=True)
@@ -44,6 +47,20 @@ validator = Validator.from_callable(
 )
 
 
+def get_query(select):
+    if isinstance(select, str):
+        return {
+            "match_all": {}
+        }
+
+
+def translate_to_elastic_query(ir_dct):
+    body = {}
+    body["query"] = get_query(ir_dct["select"])
+    body["size"] = ir_dct.get("limit", 10)
+    return body
+
+
 @click.command()
 @click.option(
     "--url",
@@ -51,6 +68,8 @@ validator = Validator.from_callable(
     required=True,
 )
 def main(url):
+    client = elasticsearch.Elasticsearch(hosts=url)
+
     bindings = KeyBindings()
 
     @bindings.add(" ")
@@ -82,8 +101,14 @@ def main(url):
         try:
             stmt = session.prompt(
                 'Give me some input:\n > ',
-            )
-            print(f"You said: {stmt.rstrip(';')}")
+            ).rstrip(';')
+
+            print(f"Query: {stmt}")
+            ir_dct = moz_sql_parser.parse(stmt)
+            query = translate_to_elastic_query(ir_dct)
+            result = client.search(body=query)
+            print(json.dumps(result["hits"]["hits"], indent=4))
+
         except EOFError:
             break
 
