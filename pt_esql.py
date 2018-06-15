@@ -16,6 +16,7 @@ import elasticsearch
 
 from pygments.lexers import SqlLexer, JsonLexer
 from pygments.styles import get_style_by_name
+from pygments.token import Token
 
 from prompt_toolkit import prompt
 from prompt_toolkit.renderer import print_formatted_text as renderer_print_formatted_text
@@ -30,6 +31,7 @@ from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
 
 
+
 def get_size():
     x, y = subprocess.check_output(["stty", "size"]).decode("utf8").split()
     return int(x), int(y)
@@ -40,6 +42,15 @@ completions = [
 ]
 
 sql_completer =  WordCompleter(completions, ignore_case=True)
+
+
+class SQLLexer(SqlLexer):
+    def get_tokens_unprocessed(self, text, stack=('root',)):
+        for i, typ, val in super().get_tokens_unprocessed(text, stack=stack):
+            if typ == Token.Literal.String.Symbol:
+                yield i, Token.Literal.String.Double, val
+            else:
+                yield i, typ, val
 
 
 class SQLValidator(Validator):
@@ -70,6 +81,7 @@ def get_source(select):
         return [select["value"]]
     else:
         return [s["value"] for s in select]
+
 
 def translate_to_elastic_query(ir_dct):
     body = {}
@@ -107,7 +119,7 @@ def main(url):
     history = FileHistory(".pt_esql_history")
     session = PromptSession(
         ">",
-        lexer=PygmentsLexer(SqlLexer),
+        lexer=PygmentsLexer(SQLLexer),
         completer=sql_completer,
         complete_while_typing=False,
         history=history,
@@ -126,7 +138,6 @@ def main(url):
             if not stmt.strip():
                 continue
 
-            print(f"Query: {stmt}")
             ir_dct = moz_sql_parser.parse(stmt)
             index, query = translate_to_elastic_query(ir_dct)
             result = client.search(index=index, body=query)
