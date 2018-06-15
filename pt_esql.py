@@ -3,6 +3,7 @@
 Demonstration of how the input can be indented.
 """
 
+import click
 import moz_sql_parser
 import pyparsing
 
@@ -14,7 +15,7 @@ from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.validation import Validator
-
+from prompt_toolkit.formatted_text import HTML
 
 sql_completer =  WordCompleter(
     [
@@ -41,7 +42,13 @@ validator = Validator.from_callable(
 )
 
 
-def main():
+@click.command()
+@click.option(
+    "--url",
+    type=str,
+    required=True,
+)
+def main(url):
     history = FileHistory(".pt_esql_history")
 
     session = PromptSession(
@@ -52,6 +59,7 @@ def main():
         history=history,
         validator=validator,
         validate_while_typing=False,
+        bottom_toolbar=HTML(f"URL: <b>{url}</b>"),
     )
 
     while True:
@@ -62,6 +70,7 @@ def main():
             print(f"You said: {stmt.rstrip(';')}")
         except EOFError:
             break
+
 
 if __name__ == '__main__':
     main()

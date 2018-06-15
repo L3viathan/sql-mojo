@@ -1,4 +1,5 @@
 astroid==1.6.5
+click==6.7
 elasticsearch==5.5.2
 flake8==3.5.0
 isort==4.3.4
