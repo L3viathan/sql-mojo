@@ -59,14 +59,14 @@ def get_source(select):
     else:
         return [s["value"] for s in select]
 
-
 def translate_to_elastic_query(ir_dct):
     body = {}
     body["query"] = get_query(ir_dct.get("where"))
     if ir_dct["select"] != "*":
         body["_source"] = get_source(ir_dct["select"])
     body["size"] = ir_dct.get("limit", 10)
-    return body
+    index = ir_dct["from"]
+    return index, body
 
 
 @click.command()
@@ -114,8 +114,8 @@ def main(url):
 
             print(f"Query: {stmt}")
             ir_dct = moz_sql_parser.parse(stmt)
-            query = translate_to_elastic_query(ir_dct)
-            result = client.search(body=query)
+            index, query = translate_to_elastic_query(ir_dct)
+            result = client.search(index=index, body=query)
             dump = json.dumps(result["hits"]["hits"], indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
