@@ -34,6 +34,55 @@ def get_size():
     return int(x), int(y)
 
 
+def get_query(where):
+    if where is None:
+        return {"match_all": {}}
+
+    if "eq" in where:
+        left, right = where["eq"]
+        return {"term": {left: right}}
+    elif "and" in where:
+        return {"bool": {"must": [get_query(x) for x in where["and"]]}}
+
+
+def get_aggregation(select):
+    (type, field), = select.items()
+    query = {
+        f"{type}_{field}": {
+            type: {
+                "field": field,
+            }
+        }
+    }
+    return query
+
+
+def translate_to_elastic_query(ir_dct):
+    body = {}
+    index = ir_dct["from"]
+
+    limit = ir_dct.get("limit")
+    if limit is not None:
+        body["size"] = limit
+
+    select = ir_dct["select"]
+    if select == "*":
+        fields = select
+    elif isinstance(select, list):
+        fields = [s["value"] for s in select]
+    elif isinstance(select["value"], str):
+        fields = [select["value"]]
+    else:
+        body["aggregations"] = get_aggregation(select["value"])
+        return index, body
+
+    body["_source"] = fields
+    where = ir_dct.get("where")
+    body["query"] = get_query(where)
+
+    return index, body
+
+
 @click.command()
 @click.option("--url", type=str, required=True)
 @click.option("--type", type=str, default=None)
@@ -77,7 +126,17 @@ def main(url, type):
                 continue
 
             ir_dct = moz_sql_parser.parse(stmt)
-            result = backend.search(ir_dct)
+            index, query = translate_to_elastic_query(ir_dct)
+            try:
+                response = client.search(index=index, body=query)
+
+                result = response.get("aggregations")
+                if result is None:
+                    result = response["hits"]["hits"]
+
+            except elasticsearch.exceptions.RequestError as exc:
+                result = exc.info["error"]["root_cause"][0]["reason"]
+
             dump = json.dumps(result, indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
