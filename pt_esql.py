@@ -46,7 +46,7 @@ def get_query(where):
 
 
 def get_aggregation(select):
-    (type, field), = select.items()
+    type, field = select.popitem()
     query = {
         f"{type}_{field}": {
             type: {
