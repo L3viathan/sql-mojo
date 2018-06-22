@@ -57,6 +57,18 @@ def get_aggregation(select):
     return query
 
 
+def get_fields(select):
+    if select == "*":
+        fields = select
+    elif isinstance(select, list):
+        fields = [s["value"] for s in select]
+    elif isinstance(select["value"], str):
+        fields = [select["value"]]
+    else:
+        fields = None
+
+    return fields
+
 def translate_to_elastic_query(ir_dct):
     body = {}
     index = ir_dct["from"]
@@ -66,14 +78,9 @@ def translate_to_elastic_query(ir_dct):
         body["size"] = limit
 
     select = ir_dct["select"]
-    if select == "*":
-        fields = select
-    elif isinstance(select, list):
-        fields = [s["value"] for s in select]
-    elif isinstance(select["value"], str):
-        fields = [select["value"]]
-    else:
-        body["aggregations"] = get_aggregation(select["value"])
+    fields = get_fields(select)
+    if not fields:
+        body["aggregations"] = get_aggregation(select)
         return index, body
 
     body["_source"] = fields
