@@ -6,7 +6,7 @@ from prompt_toolkit.completion import Completer, Completion
 from pygments.lexers import SqlLexer
 from pygments.token import Token
 
-sql_keywords = ["SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT"]
+keywords = ["SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT"]
 
 
 class SQLCompleter(Completer):
@@ -18,14 +18,14 @@ class SQLCompleter(Completer):
         word = document.get_word_before_cursor()
 
         if word:
-            for keyword in sql_keywords:
+            for keyword in keywords:
                 if keyword.lower().startswith(word.lower()):
                     yield Completion(keyword, start_position=-len(word))
         else:
             _, __, previous = document.text[:-1].rpartition(" ")
             if previous.lower() == "from":
                 for tbl in self.tables:
-                    yield Completion(tbl["index"], start_position=0)
+                    yield Completion(tbl, start_position=0)
 
 
 class SQLLexer(SqlLexer):

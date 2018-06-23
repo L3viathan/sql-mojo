@@ -10,7 +10,6 @@ from io import BytesIO
 import click
 import moz_sql_parser
 import Levenshtein
-import elasticsearch
 
 from pygments.lexers import JsonLexer
 from pygments.styles import get_style_by_name
@@ -26,7 +25,8 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
 
-from sql import SQLLexer, SQLValidator, SQLCompleter, sql_keywords
+import sql
+import backends
 
 
 def get_size():
@@ -34,39 +34,12 @@ def get_size():
     return int(x), int(y)
 
 
-def get_query(where):
-    if where is None:
-        return {"match_all": {}}
-
-    if "eq" in where:
-        left, right = where["eq"]
-        return {"term": {left: right}}
-    elif "and" in where:
-        return {"bool": {"must": [get_query(x) for x in where["and"]]}}
-
-
-def get_source(select):
-    if isinstance(select, dict):
-        return [select["value"]]
-    else:
-        return [s["value"] for s in select]
-
-
-def translate_to_elastic_query(ir_dct):
-    body = {}
-    body["query"] = get_query(ir_dct.get("where"))
-    if ir_dct["select"] != "*":
-        body["_source"] = get_source(ir_dct["select"])
-    body["size"] = ir_dct.get("limit", 10)
-    index = ir_dct["from"]
-    return index, body
-
-
 @click.command()
 @click.option("--url", type=str, required=True)
-def main(url):
-    client = elasticsearch.Elasticsearch(hosts=url)
-    completer = SQLCompleter(tables=client.cat.indices(format="json"))
+@click.option("--type", type=str, default=None)
+def main(url, type):
+    backend = backends.load(type, url)
+    completer = sql.SQLCompleter(tables=backend.get_tables())
     json_lexer = JsonLexer()
     bindings = KeyBindings()
     style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -76,7 +49,7 @@ def main(url):
         buffer = event.app.current_buffer
         word = buffer.document.get_word_before_cursor()
         if word is not None:
-            for comp in sql_keywords:
+            for comp in sql.keywords:
                 if Levenshtein.ratio(word.lower(), comp.lower()) >= 0.75:
                     buffer.delete_before_cursor(count=len(word))
                     buffer.insert_text(comp)
@@ -86,13 +59,13 @@ def main(url):
     history = FileHistory(".pt_esql_history")
     session = PromptSession(
         ">",
-        lexer=PygmentsLexer(SQLLexer),
+        lexer=PygmentsLexer(sql.SQLLexer),
         completer=completer,
         complete_while_typing=False,
         history=history,
-        validator=SQLValidator(),
+        validator=sql.SQLValidator(),
         validate_while_typing=False,
-        bottom_toolbar=HTML(f"URL: <b>{url}</b>"),
+        bottom_toolbar=HTML(f"{backend.name}: <b>{url}</b>"),
         key_bindings=bindings,
         style=style,
     )
@@ -104,9 +77,8 @@ def main(url):
                 continue
 
             ir_dct = moz_sql_parser.parse(stmt)
-            index, query = translate_to_elastic_query(ir_dct)
-            result = client.search(index=index, body=query)
-            dump = json.dumps(result["hits"]["hits"], indent=4)
+            result = backend.search(ir_dct)
+            dump = json.dumps(result, indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
             if get_size()[1] < dump.count("\n") - 1:
