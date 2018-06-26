@@ -133,17 +133,7 @@ def main(url, type):
                 continue
 
             ir_dct = moz_sql_parser.parse(stmt)
-            index, query = translate_to_elastic_query(ir_dct)
-            try:
-                response = client.search(index=index, body=query)
-
-                result = response.get("aggregations")
-                if result is None:
-                    result = response["hits"]["hits"]
-
-            except elasticsearch.exceptions.RequestError as exc:
-                result = exc.info["error"]["root_cause"][0]["reason"]
-
+            result = backend.search(ir_dct)
             dump = json.dumps(result, indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
