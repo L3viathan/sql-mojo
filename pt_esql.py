@@ -76,18 +76,22 @@ def main(url, type):
             dump = json.dumps(result, indent=4)
             tokens = list(json_lexer.get_tokens(dump))
 
-            if get_size()[1] < dump.count("\n") - 1:
-                bytesio = BytesIO()
-                bytesio.encoding = "UTF-8"
-                output = Vt100_Output(bytesio, get_size)
-                renderer_print_formatted_text(
-                    output, PygmentsTokens(tokens), style=style
-                )
+            bytesio = BytesIO()
+            bytesio.encoding = "UTF-8"
+            output = Vt100_Output(bytesio, get_size)
+            renderer_print_formatted_text(
+                output, PygmentsTokens(tokens), style=style
+            )
 
-                subprocess.run(["less", "-R"], input=bytesio.getvalue())
-            else:
-                print_formatted_text(PygmentsTokens(tokens), style=style)
-
+            # Pager Options:
+            # -F: Quit less if the entire content can be displayed on the first
+            #     page.
+            # -R: Display raw control characters.
+            # -S: Disable line wrapping.
+            # -X: Avoid clearing the screen on de-initialization. This in
+            #     combination with the -F option allows a content sensitive
+            #     triggering of less.
+            subprocess.run(["less", "-FRSX"], input=bytesio.getvalue())
         except EOFError:
             break
 
