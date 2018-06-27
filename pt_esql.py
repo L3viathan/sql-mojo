@@ -34,6 +34,62 @@ def get_size():
     return int(x), int(y)
 
 
+def get_query(where):
+    if where is None:
+        return {"match_all": {}}
+
+    if "eq" in where:
+        left, right = where["eq"]
+        return {"term": {left: right}}
+    elif "and" in where:
+        return {"bool": {"must": [get_query(x) for x in where["and"]]}}
+
+
+def get_aggregation(select):
+    type, field = select.popitem()
+    query = {
+        f"{type}_{field}": {
+            type: {
+                "field": field,
+            }
+        }
+    }
+    return query
+
+
+def get_fields(select):
+    if select == "*":
+        fields = select
+    elif isinstance(select, list):
+        fields = [s["value"] for s in select]
+    elif isinstance(select["value"], str):
+        fields = [select["value"]]
+    else:
+        fields = None
+
+    return fields
+
+def translate_to_elastic_query(ir_dct):
+    body = {}
+    index = ir_dct["from"]
+
+    limit = ir_dct.get("limit")
+    if limit is not None:
+        body["size"] = limit
+
+    select = ir_dct["select"]
+    fields = get_fields(select)
+    if not fields:
+        body["aggregations"] = get_aggregation(select)
+        return index, body
+
+    body["_source"] = fields
+    where = ir_dct.get("where")
+    body["query"] = get_query(where)
+
+    return index, body
+
+
 @click.command()
 @click.option("--url", type=str, required=True)
 @click.option("--type", type=str, default=None)
