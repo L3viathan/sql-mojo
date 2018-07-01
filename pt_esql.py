@@ -2,10 +2,12 @@
 """
 Demonstration of how the input can be indented.
 """
+
+import importlib
 import json
+import pkgutil
 
 import click
-import moz_sql_parser
 import Levenshtein
 
 from pygments.lexers import JsonLexer
@@ -15,12 +17,12 @@ from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession, print_formatted_text
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.formatted_text import HTML, PygmentsTokens
+from prompt_toolkit.formatted_text import PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
 
 import sql
-import backends
 from pager import pager
+import backends
 
 json_lexer = JsonLexer()
 style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -38,13 +40,24 @@ def render(output):
         )
 
 
-@click.command()
-@click.option("--url", type=str, required=True)
-@click.option("--type", type=str, default=None)
-def main(url, type):
-    backend = backends.load(type, url)
-    completer = sql.SQLCompleter(tables=backend.get_tables())
+def load_commands():
+    """ Loads supported backends and registers the corresponding commands in
+    the main command group.
 
+    Note: This function assumes that the command to register has the same name
+          as corresponding module in the backends package.
+    """
+    for _, modname, _ in pkgutil.iter_modules(backends.__path__):
+        import_path = ".".join([backends.__name__, modname])
+        backend = importlib.import_module(import_path)
+        command = getattr(backend, modname)
+        cli.add_command(command)
+
+
+@click.group()
+@click.pass_context
+def cli(ctx):
+    """ Foo baz Bar"""
     bindings = KeyBindings()
 
     @bindings.add(" ")
@@ -60,32 +73,21 @@ def main(url, type):
         buffer.insert_text(" ")
 
     history = FileHistory(".pt_esql_history")
-    session = PromptSession(
-        ">",
-        lexer=PygmentsLexer(sql.SQLLexer),
-        completer=completer,
-        complete_while_typing=False,
-        history=history,
-        validator=sql.SQLValidator(),
-        validate_while_typing=False,
-        bottom_toolbar=HTML(f"{backend.name}: <b>{url}</b>"),
-        key_bindings=bindings,
-        style=style,
-    )
 
-    while True:
-        try:
-            stmt = session.prompt("eSQL> ").rstrip(";")
-            if not stmt.strip():
-                continue
-
-            ir_dct = moz_sql_parser.parse(stmt)
-            result = backend.query(ir_dct)
-            render(result)
-
-        except EOFError:
-            break
+    ctx.obj = {
+        "session": PromptSession(
+            ">",
+            lexer=PygmentsLexer(sql.SQLLexer),
+            history=history,
+            validator=sql.SQLValidator(),
+            validate_while_typing=False,
+            key_bindings=bindings,
+            style=style,
+        ),
+        "render": render,
+    }
 
 
 if __name__ == "__main__":
-    main()
+    load_commands()
+    cli()

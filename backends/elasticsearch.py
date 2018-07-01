@@ -1,24 +1,21 @@
-import elasticsearch
+# -*- coding: utf-8 -*-
 
+import click
 
-class DummyBackend:
+import moz_sql_parser
 
-    def __init__(self, url):
-        self.url = url
-        self.name = "Dummy"
+from elasticsearch import Elasticsearch
 
-    def get_tables(self):
-        return "foo bar bat".split()
+from prompt_toolkit.formatted_text import HTML
 
-    def query(self, data):
-        return data
+import sql
 
 
 class ElasticBackend:
 
     def __init__(self, url):
         self.url = url
-        self.client = elasticsearch.Elasticsearch(hosts=url)
+        self.client = Elasticsearch(hosts=url)
         self.name = "Elasticsearch"
 
     def get_query(self, where):
@@ -98,8 +95,26 @@ class ElasticBackend:
         return [t["index"] for t in self.client.cat.indices(format="json")]
 
 
-def load(type_, url):
-    if type_ == "elastic" or type_ is None and ":9200" in url:
-        return ElasticBackend(url)
-    else:
-        return DummyBackend(url)
+@click.command()
+@click.option("--url", type=str, required=True)
+@click.pass_context
+def elasticsearch(ctx, url):
+    """ Elasticsearch backend"""
+    backend = ElasticBackend(url)
+    while True:
+        try:
+            stmt = ctx.obj["session"].prompt(
+                "eSQL> ",
+                bottom_toolbar=HTML(f"{backend.name}: <b>{url}</b>"),
+                completer=sql.SQLCompleter(tables=backend.get_tables()),
+                complete_while_typing=False,
+            ).rstrip(";")
+            if not stmt.strip():
+                continue
+
+            ir_dct = moz_sql_parser.parse(stmt)
+            result = backend.query(ir_dct)
+            ctx.obj["render"](result)
+
+        except EOFError:
+            break
