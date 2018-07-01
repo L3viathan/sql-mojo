@@ -1,8 +1,8 @@
 import elasticsearch
 
 
-
 class DummyBackend:
+
     def __init__(self, url):
         self.url = url
         self.name = "Dummy"
@@ -10,14 +10,16 @@ class DummyBackend:
     def get_tables(self):
         return "foo bar bat".split()
 
-    def search(self, data):
+    def query(self, data):
         return data
 
+
 class ElasticBackend:
+
     def __init__(self, url):
         self.url = url
         self.client = elasticsearch.Elasticsearch(hosts=url)
-        self.name = "ElasticSearch"
+        self.name = "Elasticsearch"
 
     def get_query(self, where):
         if where is None:
@@ -27,7 +29,13 @@ class ElasticBackend:
             left, right = where["eq"]
             return {"term": {left: right}}
         elif "and" in where:
-            return {"bool": {"must": [self.get_query(x) for x in where["and"]]}}
+            return {
+                "bool": {
+                    "must": [
+                        self.get_query(x) for x in where["and"]
+                    ],
+                },
+            }
 
     def get_fields(self, select):
         if select == "*":
@@ -72,7 +80,7 @@ class ElasticBackend:
 
         return index, body
 
-    def search(self, data):
+    def query(self, data):
         try:
             index, query = self.translate(data)
 

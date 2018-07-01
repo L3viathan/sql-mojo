@@ -2,10 +2,7 @@
 """
 Demonstration of how the input can be indented.
 """
-
 import json
-import subprocess
-from io import BytesIO
 
 import click
 import moz_sql_parser
@@ -14,10 +11,6 @@ import Levenshtein
 from pygments.lexers import JsonLexer
 from pygments.styles import get_style_by_name
 
-from prompt_toolkit.renderer import (
-    print_formatted_text as renderer_print_formatted_text
-)
-from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import PromptSession, print_formatted_text
@@ -27,6 +20,22 @@ from prompt_toolkit.key_binding import KeyBindings
 
 import sql
 import backends
+from pager import pager
+
+json_lexer = JsonLexer()
+style = style_from_pygments_cls(get_style_by_name("monokai"))
+
+
+def render(output):
+    dump = json.dumps(output, indent=4)
+    tokens = list(json_lexer.get_tokens(dump))
+
+    with pager(options="-FRSX") as less:
+        print_formatted_text(
+            PygmentsTokens(tokens),
+            style=style,
+            file=less,
+        )
 
 
 @click.command()
@@ -35,9 +44,8 @@ import backends
 def main(url, type):
     backend = backends.load(type, url)
     completer = sql.SQLCompleter(tables=backend.get_tables())
-    json_lexer = JsonLexer()
+
     bindings = KeyBindings()
-    style = style_from_pygments_cls(get_style_by_name("monokai"))
 
     @bindings.add(" ")
     def _(event):
@@ -72,26 +80,9 @@ def main(url, type):
                 continue
 
             ir_dct = moz_sql_parser.parse(stmt)
-            result = backend.search(ir_dct)
-            dump = json.dumps(result, indent=4)
-            tokens = list(json_lexer.get_tokens(dump))
+            result = backend.query(ir_dct)
+            render(result)
 
-            bytesio = BytesIO()
-            bytesio.encoding = "UTF-8"
-            output = Vt100_Output(bytesio, get_size)
-            renderer_print_formatted_text(
-                output, PygmentsTokens(tokens), style=style
-            )
-
-            # Pager Options:
-            # -F: Quit less if the entire content can be displayed on the first
-            #     page.
-            # -R: Display raw control characters.
-            # -S: Disable line wrapping.
-            # -X: Avoid clearing the screen on de-initialization. This in
-            #     combination with the -F option allows a content sensitive
-            #     triggering of less.
-            subprocess.run(["less", "-FRSX"], input=bytesio.getvalue())
         except EOFError:
             break
 
