@@ -51,7 +51,7 @@ def main(url, type):
     def _(event):
         buffer = event.app.current_buffer
         word = buffer.document.get_word_before_cursor()
-        if word is not None:
+        if word is not None and len(word) > 3:
             for comp in sql.keywords:
                 if Levenshtein.ratio(word.lower(), comp.lower()) >= 0.75:
                     buffer.delete_before_cursor(count=len(word))
