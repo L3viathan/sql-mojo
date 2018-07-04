@@ -16,23 +16,54 @@ class DummyBackend:
 
 class ElasticBackend:
 
-    def __init__(self, url):
+    metrics_aggregation_types = [
+        # Functional
+        "avg",
+        "sum",
+        "min",
+        "max",
+        "stats",
+        "cardinality",
+        "percentiles",
+
+        # Not working yet.. needs SQL parsing fix
+        "top_hits",
+        "value_count",
+        "extended_stats",
+        "percentile_ranks",
+        "geo_bounds",
+        "geo_centroid",
+    ]
+
+    def __init__(self, url, debug=False):
         self.url = url
-        self.client = elasticsearch.Elasticsearch(hosts=url)
+        self.debug = debug
+        self.client = elasticsearch.Elasticsearch(hosts=url, timeout=180)
         self.name = "Elasticsearch"
 
     def get_query(self, where):
         if where is None:
             return {"match_all": {}}
 
+        query = {"bool": {}}
         if "eq" in where:
             left, right = where["eq"]
             return {"term": {left: right}}
-        elif "and" in where:
+        elif "neq" in where:
+            left, right = where["neq"]
+            return {"term": {left: right}}
+        if "and" in where:
             return {
                 "bool": {
                     "must": [
-                        self.get_query(x) for x in where["and"]
+                        self.get_query(x)
+                        for x in where["and"]
+                        if "eq" in x
+                    ],
+                    "must_not": [
+                        self.get_query(x)
+                        for x in where["and"]
+                        if "neq" in x
                     ],
                 },
             }
@@ -49,11 +80,10 @@ class ElasticBackend:
 
         return fields
 
-    def get_aggregation(self, select):
-        type, field = select.popitem()
+    def get_aggregation(self, agg_type, field):
         query = {
-            f"{type}_{field}": {
-                type: {
+            f"{agg_type}_{field}": {
+                agg_type: {
                     "field": field,
                 }
             }
@@ -64,6 +94,7 @@ class ElasticBackend:
         body = {}
         index = ir_dct["from"]
 
+        count = False
         limit = ir_dct.get("limit")
         if limit is not None:
             body["size"] = limit
@@ -71,20 +102,34 @@ class ElasticBackend:
         select = ir_dct["select"]
         fields = self.get_fields(select)
         if not fields:
-            body["aggregations"] = self.get_aggregation(select)
-            return index, body
+            agg_type, field = select["value"].popitem()
+            if agg_type in ElasticBackend.metrics_aggregation_types:
+                body["aggregations"] = self.get_aggregation(agg_type, field)
+                return index, False, body
+            elif agg_type in ["count"]:
+                count = True
 
-        body["_source"] = fields
+        if not count:
+            body["_source"] = fields
+
         where = ir_dct.get("where")
         body["query"] = self.get_query(where)
 
-        return index, body
+        return index, count, body
 
     def query(self, data):
         try:
-            index, query = self.translate(data)
+            index, count, query = self.translate(data)
 
-            response = self.client.search(index=index, body=query)
+            if self.debug:
+                print(query)
+
+            if count:
+                response = self.client.count(index=index, body=query)
+                return response
+            else:
+                response = self.client.search(index=index, body=query)
+
             result = response.get("aggregations")
             if result is None:
                 result = response["hits"]["hits"]
@@ -98,8 +143,8 @@ class ElasticBackend:
         return [t["index"] for t in self.client.cat.indices(format="json")]
 
 
-def load(type_, url):
+def load(type_, url, debug):
     if type_ == "elastic" or type_ is None and ":9200" in url:
-        return ElasticBackend(url)
+        return ElasticBackend(url, debug)
     else:
         return DummyBackend(url)
