@@ -41,8 +41,9 @@ def render(output):
 @click.command()
 @click.option("--url", type=str, required=True)
 @click.option("--type", type=str, default=None)
-def main(url, type):
-    backend = backends.load(type, url)
+@click.option("--debug", is_flag=True, default=False)
+def main(url, type, debug):
+    backend = backends.load(type, url, debug)
     completer = sql.SQLCompleter(tables=backend.get_tables())
 
     bindings = KeyBindings()
