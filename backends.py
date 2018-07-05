@@ -14,7 +14,7 @@ class FileSystemBackend:
             "owner": lambda x: x.owner(),
             "group": lambda x: x.group(),
             "permissions": lambda x: int(oct(x.stat().st_mode)[-3:]),
-            "size": lambda x: x.stat().st_size,
+            "size": lambda x: self.human_readable(x.stat().st_size),
         }
 
     def get_tables(self):
@@ -23,15 +23,23 @@ class FileSystemBackend:
             for element in self.basepath.iterdir()
         ]
 
+    @staticmethod
+    def human_readable(size):
+        for unit in ["", "K", "M", "G", "T", "P"]:
+            if size < 1024:
+                return f"{size:3.1f}{unit}" if unit else f"{size}"
+            size /= 1024
+        return f"{size:3.1f}E"
+
     def query(self, data):
-        print(data)
         fields = (
             [item["value"] for item in data["select"]]
             if isinstance(data["select"], list)
             else [data["select"]["value"]]
         )
-        # assert not set(fields) - {"name", "ctime", "mtime", "user", "group", "permissions", "size", "hsize"}
         assert not set(fields) - set(self.fieldgetter)
+        if data["from"] == "*":
+            data["from"] = ""
         path = self.basepath / data["from"]
         if path.is_file():
             files = [path]
