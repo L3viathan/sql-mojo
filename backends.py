@@ -1,8 +1,58 @@
 import elasticsearch
+from pathlib import Path
+
+
+class FileSystemBackend:
+    def __init__(self, basepath):
+        self.basepath = Path(basepath).expanduser().absolute()
+        self.name = f"file:///{self.basepath}"
+        self.fieldgetter = {
+            "name": lambda x: x.name,
+            "ctime": lambda x: x.stat().st_ctime,
+            "mtime": lambda x: x.stat().st_mtime,
+            "atime": lambda x: x.stat().st_atime,
+            "owner": lambda x: x.owner(),
+            "group": lambda x: x.group(),
+            "permissions": lambda x: int(oct(x.stat().st_mode)[-3:]),
+            "size": lambda x: self.human_readable(x.stat().st_size),
+        }
+
+    def get_tables(self):
+        return [
+            f'"{element.relative_to(self.basepath)}"'
+            for element in self.basepath.iterdir()
+        ]
+
+    @staticmethod
+    def human_readable(size):
+        for unit in ["", "K", "M", "G", "T", "P"]:
+            if size < 1024:
+                return f"{size:3.1f}{unit}" if unit else f"{size}"
+            size /= 1024
+        return f"{size:3.1f}E"
+
+    def query(self, data):
+        fields = (
+            [item["value"] for item in data["select"]]
+            if isinstance(data["select"], list)
+            else [data["select"]["value"]]
+        )
+        assert not set(fields) - set(self.fieldgetter)
+        if data["from"] == "*":
+            data["from"] = ""
+        path = self.basepath / data["from"]
+        if path.is_dir():
+            files = list(path.iterdir())
+        elif "*" in data["from"]:
+            files = list(self.basepath.glob(data["from"]))
+        else:
+            files = [path]
+        return [
+            {field: self.fieldgetter[field](file) for field in fields} for file in files
+        ]
 
 
 class DummyBackend:
-
     def __init__(self, url):
         self.url = url
         self.name = "Dummy"
@@ -15,7 +65,6 @@ class DummyBackend:
 
 
 class ElasticBackend:
-
     def __init__(self, url):
         self.url = url
         self.client = elasticsearch.Elasticsearch(hosts=url)
@@ -29,13 +78,7 @@ class ElasticBackend:
             left, right = where["eq"]
             return {"term": {left: right}}
         elif "and" in where:
-            return {
-                "bool": {
-                    "must": [
-                        self.get_query(x) for x in where["and"]
-                    ],
-                },
-            }
+            return {"bool": {"must": [self.get_query(x) for x in where["and"]]}}
 
     def get_fields(self, select):
         if select == "*":
@@ -51,13 +94,7 @@ class ElasticBackend:
 
     def get_aggregation(self, select):
         type, field = select.popitem()
-        query = {
-            f"{type}_{field}": {
-                type: {
-                    "field": field,
-                }
-            }
-        }
+        query = {f"{type}_{field}": {type: {"field": field}}}
         return query
 
     def translate(self, ir_dct):
@@ -101,5 +138,7 @@ class ElasticBackend:
 def load(type_, url):
     if type_ == "elastic" or type_ is None and ":9200" in url:
         return ElasticBackend(url)
+    elif type_ == "fs" or type_ is None and ":" not in url:
+        return FileSystemBackend(url)
     else:
         return DummyBackend(url)
