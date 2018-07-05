@@ -41,10 +41,12 @@ class FileSystemBackend:
         if data["from"] == "*":
             data["from"] = ""
         path = self.basepath / data["from"]
-        if path.is_file():
-            files = [path]
-        else:
+        if path.is_dir():
             files = list(path.iterdir())
+        elif "*" in data["from"]:
+            files = list(self.basepath.glob(data["from"]))
+        else:
+            files = [path]
         return [
             {field: self.fieldgetter[field](file) for field in fields} for file in files
         ]
