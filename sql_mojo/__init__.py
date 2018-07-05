@@ -22,9 +22,28 @@ from sql_mojo_parser import yacc
 import sql_mojo.sql as sql
 import sql_mojo.backends as backends
 from sql_mojo.pager import pager
+from tabulate import tabulate
 
 json_lexer = JsonLexer()
 style = style_from_pygments_cls(get_style_by_name("monokai"))
+
+
+def tabularize(list_of_dicts):
+    if not list_of_dicts:
+        return []
+    header = list(list_of_dicts[0].keys())
+
+    def row_iterator():
+        for row in list_of_dicts:
+            yield [row[key] for key in header]
+
+    return row_iterator(), header
+
+
+def is_flat(something):
+    return all(
+        all(not isinstance(row[key], (list, dict)) for key in row) for row in something
+    )
 
 
 def render(output):
@@ -32,11 +51,11 @@ def render(output):
     tokens = list(json_lexer.get_tokens(dump))
 
     with pager(options="-FRSX") as less:
-        print_formatted_text(
-            PygmentsTokens(tokens),
-            style=style,
-            file=less,
-        )
+        if is_flat(output):
+            table = tabulate(*tabularize(output), tablefmt="grid").encode("utf-8")
+            less.write(table)
+        else:
+            print_formatted_text(PygmentsTokens(tokens), style=style, file=less)
 
 
 @click.command()

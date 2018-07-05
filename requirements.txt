@@ -24,3 +24,4 @@ urllib3==1.22
 wcwidth==0.1.7
 wrapt==1.10.11
 sql-mojo-parser
+tabularize
