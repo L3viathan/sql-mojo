@@ -12,8 +12,6 @@ mo-future==2.4.18148
 mo-kwargs==2.14.18155
 mo-logs==2.11.18154
 mo-math==2.13.18154
-moz-sql-parser==2.15.18155
-parso==0.2.1
 prompt-toolkit==2.0.3
 pycodestyle==2.3.1
 pyflakes==1.6.0
@@ -25,3 +23,4 @@ six==1.11.0
 urllib3==1.22
 wcwidth==0.1.7
 wrapt==1.10.11
+sql-mojo-parser

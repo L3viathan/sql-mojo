@@ -32,19 +32,16 @@ class FileSystemBackend:
         return f"{size:3.1f}E"
 
     def query(self, data):
-        fields = (
-            [item["value"] for item in data["select"]]
-            if isinstance(data["select"], list)
-            else [data["select"]["value"]]
-        )
+        fields = [item["value"] for item in data["columns"]]
         assert not set(fields) - set(self.fieldgetter)
-        if data["from"] == "*":
-            data["from"] = ""
-        path = self.basepath / data["from"]
+        index = data["index"]["value"]
+        if index == "*":
+            index = ""
+        path = self.basepath / index
         if path.is_dir():
             files = list(path.iterdir())
-        elif "*" in data["from"]:
-            files = list(self.basepath.glob(data["from"]))
+        elif "*" in index:
+            files = list(self.basepath.glob(index))
         else:
             files = [path]
         return [
@@ -74,45 +71,60 @@ class ElasticBackend:
         if where is None:
             return {"match_all": {}}
 
-        if "eq" in where:
-            left, right = where["eq"]
-            return {"term": {left: right}}
-        elif "and" in where:
-            return {"bool": {"must": [self.get_query(x) for x in where["and"]]}}
+        if where["op"] == "=":
+            left, right = where["args"]
+            return {"term": {left["value"]: right["value"]}}
+        elif where["op"] == "and":
+            return {
+                "bool": {
+                    "must": [
+                        self.get_query(x) for x in where["args"]
+                    ],
+                },
+            }
 
     def get_fields(self, select):
-        if select == "*":
-            fields = select
-        elif isinstance(select, list):
-            fields = [s["value"] for s in select]
-        elif isinstance(select["value"], str):
-            fields = [select["value"]]
-        else:
-            fields = None
+        if len(select) == 1 and select[0]["type"] == "star":
+            fields = "*"
+        elif select:
+            fields = [s["value"] for s in select if s["type"] == "name"]
 
-        return fields
+        if fields:
+            return fields
+        else:
+            return None
 
     def get_aggregation(self, select):
-        type, field = select.popitem()
-        query = {f"{type}_{field}": {type: {"field": field}}}
+        assert select[0]["type"] == "func_appl"
+        func_appl = select[0]["value"]
+        type_ = func_appl["name"]
+        field = func_appl["arg"]["value"]
+        query = {
+            f"{type_}_{field}": {
+                type_: {
+                    "field": field,
+                }
+            }
+        }
         return query
 
     def translate(self, ir_dct):
+        assert ir_dct["type"] == "select"
         body = {}
-        index = ir_dct["from"]
+        index = ir_dct["index"]["value"]
 
         limit = ir_dct.get("limit")
         if limit is not None:
             body["size"] = limit
 
-        select = ir_dct["select"]
+        select = ir_dct["columns"]
         fields = self.get_fields(select)
         if not fields:
             body["aggregations"] = self.get_aggregation(select)
             return index, body
 
         body["_source"] = fields
-        where = ir_dct.get("where")
+        where = ir_dct.get("condition")
         body["query"] = self.get_query(where)
 
         return index, body
