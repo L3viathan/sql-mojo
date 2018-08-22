@@ -43,7 +43,7 @@ class SQLValidator(Validator):
         text = document.text.rstrip(";")
         try:
             result = yacc.parse(text)
-            if "index" not in result:
+            if "table" not in result:
                 raise SyntaxError(text, len(text), "Expecting from")
         except SyntaxError as exc:
             raise ValidationError(message=str(exc)) #, cursor_position=exc.args[1])
