@@ -19,9 +19,9 @@ from prompt_toolkit.key_binding import KeyBindings
 
 from sql_mojo_parser import yacc
 
-import sql
-import backends
-from pager import pager
+import sql_mojo.sql as sql
+import sql_mojo.backends as backends
+from sql_mojo.pager import pager
 
 json_lexer = JsonLexer()
 style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -60,7 +60,7 @@ def main(url, type):
                     break
         buffer.insert_text(" ")
 
-    history = FileHistory(".pt_esql_history")
+    history = FileHistory(".sqlmojo_history")
     session = PromptSession(
         ">",
         lexer=PygmentsLexer(sql.SQLLexer),

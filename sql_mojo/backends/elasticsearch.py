@@ -1,65 +1,4 @@
 import elasticsearch
-from pathlib import Path
-
-
-class FileSystemBackend:
-    def __init__(self, basepath):
-        self.basepath = Path(basepath).expanduser().absolute()
-        self.name = f"file:///{self.basepath}"
-        self.fieldgetter = {
-            "name": lambda x: x.name,
-            "ctime": lambda x: x.stat().st_ctime,
-            "mtime": lambda x: x.stat().st_mtime,
-            "atime": lambda x: x.stat().st_atime,
-            "owner": lambda x: x.owner(),
-            "group": lambda x: x.group(),
-            "permissions": lambda x: int(oct(x.stat().st_mode)[-3:]),
-            "size": lambda x: self.human_readable(x.stat().st_size),
-        }
-
-    def get_tables(self):
-        return [
-            f'"{element.relative_to(self.basepath)}"'
-            for element in self.basepath.iterdir()
-        ]
-
-    @staticmethod
-    def human_readable(size):
-        for unit in ["", "K", "M", "G", "T", "P"]:
-            if size < 1024:
-                return f"{size:3.1f}{unit}" if unit else f"{size}"
-            size /= 1024
-        return f"{size:3.1f}E"
-
-    def query(self, data):
-        fields = [item["value"] for item in data["columns"]]
-        assert not set(fields) - set(self.fieldgetter)
-        index = data["table"]["value"]
-        if index == "*":
-            index = ""
-        path = self.basepath / index
-        if path.is_dir():
-            files = list(path.iterdir())
-        elif "*" in index:
-            files = list(self.basepath.glob(index))
-        else:
-            files = [path]
-        return [
-            {field: self.fieldgetter[field](file) for field in fields} for file in files
-        ]
-
-
-class DummyBackend:
-    def __init__(self, url):
-        self.url = url
-        self.name = "Dummy"
-
-    def get_tables(self):
-        return "foo bar bat".split()
-
-    def query(self, data):
-        return data
-
 
 class ElasticBackend:
     def __init__(self, url):
@@ -145,12 +84,3 @@ class ElasticBackend:
 
     def get_tables(self):
         return [t["index"] for t in self.client.cat.indices(format="json")]
-
-
-def load(type_, url):
-    if type_ == "elastic" or type_ is None and ":9200" in url:
-        return ElasticBackend(url)
-    elif type_ == "fs" or type_ is None and ":" not in url:
-        return FileSystemBackend(url)
-    else:
-        return DummyBackend(url)
