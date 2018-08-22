@@ -34,7 +34,7 @@ class FileSystemBackend:
     def query(self, data):
         fields = [item["value"] for item in data["columns"]]
         assert not set(fields) - set(self.fieldgetter)
-        index = data["index"]["value"]
+        index = data["table"]["value"]
         if index == "*":
             index = ""
         path = self.basepath / index
@@ -95,7 +95,7 @@ class ElasticBackend:
             return None
 
     def get_aggregation(self, select):
-        assert select[0]["type"] == "func_appl"
+        assert select[0]["type"] == "function"
         func_appl = select[0]["value"]
         type_ = func_appl["name"]
         field = func_appl["arg"]["value"]
@@ -111,7 +111,7 @@ class ElasticBackend:
     def translate(self, ir_dct):
         assert ir_dct["type"] == "select"
         body = {}
-        index = ir_dct["index"]["value"]
+        index = ir_dct["table"]["value"]
 
         limit = ir_dct.get("limit")
         if limit is not None:
