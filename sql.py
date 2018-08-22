@@ -1,10 +1,9 @@
-import moz_sql_parser
-import pyparsing
-
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.completion import Completer, Completion
 from pygments.lexers import SqlLexer
 from pygments.token import Token
+
+from sql_mojo_parser import yacc
 
 keywords = ["SELECT", "FROM", "WHERE", "ORDER BY", "AND", "OR", "LIMIT"]
 
@@ -43,8 +42,8 @@ class SQLValidator(Validator):
             return
         text = document.text.rstrip(";")
         try:
-            result = moz_sql_parser.parse(text)
-            if "from" not in result:
-                raise pyparsing.ParseException(text, len(text), "Expecting from")
-        except pyparsing.ParseException as exc:
-            raise ValidationError(message=str(exc), cursor_position=exc.args[1])
+            result = yacc.parse(text)
+            if "index" not in result:
+                raise SyntaxError(text, len(text), "Expecting from")
+        except SyntaxError as exc:
+            raise ValidationError(message=str(exc)) #, cursor_position=exc.args[1])

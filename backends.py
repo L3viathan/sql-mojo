@@ -1,8 +1,55 @@
 import elasticsearch
+from pathlib import Path
+
+
+class FileSystemBackend:
+    def __init__(self, basepath):
+        self.basepath = Path(basepath).expanduser().absolute()
+        self.name = f"file:///{self.basepath}"
+        self.fieldgetter = {
+            "name": lambda x: x.name,
+            "ctime": lambda x: x.stat().st_ctime,
+            "mtime": lambda x: x.stat().st_mtime,
+            "atime": lambda x: x.stat().st_atime,
+            "owner": lambda x: x.owner(),
+            "group": lambda x: x.group(),
+            "permissions": lambda x: int(oct(x.stat().st_mode)[-3:]),
+            "size": lambda x: self.human_readable(x.stat().st_size),
+        }
+
+    def get_tables(self):
+        return [
+            f'"{element.relative_to(self.basepath)}"'
+            for element in self.basepath.iterdir()
+        ]
+
+    @staticmethod
+    def human_readable(size):
+        for unit in ["", "K", "M", "G", "T", "P"]:
+            if size < 1024:
+                return f"{size:3.1f}{unit}" if unit else f"{size}"
+            size /= 1024
+        return f"{size:3.1f}E"
+
+    def query(self, data):
+        fields = [item["value"] for item in data["columns"]]
+        assert not set(fields) - set(self.fieldgetter)
+        index = data["table"]["value"]
+        if index == "*":
+            index = ""
+        path = self.basepath / index
+        if path.is_dir():
+            files = list(path.iterdir())
+        elif "*" in index:
+            files = list(self.basepath.glob(index))
+        else:
+            files = [path]
+        return [
+            {field: self.fieldgetter[field](file) for field in fields} for file in files
+        ]
 
 
 class DummyBackend:
-
     def __init__(self, url):
         self.url = url
         self.name = "Dummy"
@@ -15,7 +62,6 @@ class DummyBackend:
 
 
 class ElasticBackend:
-
     def __init__(self, url):
         self.url = url
         self.client = elasticsearch.Elasticsearch(hosts=url)
@@ -25,35 +71,37 @@ class ElasticBackend:
         if where is None:
             return {"match_all": {}}
 
-        if "eq" in where:
-            left, right = where["eq"]
-            return {"term": {left: right}}
-        elif "and" in where:
+        if where["op"] == "=":
+            left, right = where["args"]
+            return {"term": {left["value"]: right["value"]}}
+        elif where["op"] == "and":
             return {
                 "bool": {
                     "must": [
-                        self.get_query(x) for x in where["and"]
+                        self.get_query(x) for x in where["args"]
                     ],
                 },
             }
 
     def get_fields(self, select):
-        if select == "*":
-            fields = select
-        elif isinstance(select, list):
-            fields = [s["value"] for s in select]
-        elif isinstance(select["value"], str):
-            fields = [select["value"]]
-        else:
-            fields = None
+        if len(select) == 1 and select[0]["type"] == "star":
+            fields = "*"
+        elif select:
+            fields = [s["value"] for s in select if s["type"] == "name"]
 
-        return fields
+        if fields:
+            return fields
+        else:
+            return None
 
     def get_aggregation(self, select):
-        type, field = select.popitem()
+        assert select[0]["type"] == "function"
+        func_appl = select[0]["value"]
+        type_ = func_appl["name"]
+        field = func_appl["arg"]["value"]
         query = {
-            f"{type}_{field}": {
-                type: {
+            f"{type_}_{field}": {
+                type_: {
                     "field": field,
                 }
             }
@@ -61,21 +109,22 @@ class ElasticBackend:
         return query
 
     def translate(self, ir_dct):
+        assert ir_dct["type"] == "select"
         body = {}
-        index = ir_dct["from"]
+        index = ir_dct["table"]["value"]
 
         limit = ir_dct.get("limit")
         if limit is not None:
             body["size"] = limit
 
-        select = ir_dct["select"]
+        select = ir_dct["columns"]
         fields = self.get_fields(select)
         if not fields:
             body["aggregations"] = self.get_aggregation(select)
             return index, body
 
         body["_source"] = fields
-        where = ir_dct.get("where")
+        where = ir_dct.get("condition")
         body["query"] = self.get_query(where)
 
         return index, body
@@ -101,5 +150,7 @@ class ElasticBackend:
 def load(type_, url):
     if type_ == "elastic" or type_ is None and ":9200" in url:
         return ElasticBackend(url)
+    elif type_ == "fs" or type_ is None and ":" not in url:
+        return FileSystemBackend(url)
     else:
         return DummyBackend(url)

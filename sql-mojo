@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Demonstration of how the input can be indented.
 """
 import json
 
 import click
-import moz_sql_parser
 import Levenshtein
 
 from pygments.lexers import JsonLexer
@@ -17,6 +16,8 @@ from prompt_toolkit.shortcuts import PromptSession, print_formatted_text
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.formatted_text import HTML, PygmentsTokens
 from prompt_toolkit.key_binding import KeyBindings
+
+from sql_mojo_parser import yacc
 
 import sql
 import backends
@@ -79,7 +80,7 @@ def main(url, type):
             if not stmt.strip():
                 continue
 
-            ir_dct = moz_sql_parser.parse(stmt)
+            ir_dct = yacc.parse(stmt)
             result = backend.query(ir_dct)
             render(result)
 
