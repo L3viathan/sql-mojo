@@ -2,14 +2,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="sql-mojo",
-    version="0.0.5",
+    version="0.0.6",
     install_requires=[
         "sql-mojo-parser",
         "elasticsearch",
         "click",
         "python-Levenshtein",
         "pygments",
-        "prompt_toolkit",
+        "prompt_toolkit>=2.0.0",
     ],
     author="The sql-mojo team",
     author_email="git@l3vi.de",
