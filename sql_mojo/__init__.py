@@ -40,10 +40,15 @@ def render(output):
 
 
 @click.command()
-@click.option("--url", type=str, required=True)
 @click.option("--type", type=str, default=None)
-def main(url, type):
-    backend = backends.load(type, url)
+@click.argument("url", type=str, required=True)
+def main(type, url):
+    try:
+        backend = backends.load(type, url)
+    except ValueError as ex:
+        print(ex.args[0])
+        backends.list()
+        return
     completer = sql.SQLCompleter(tables=backend.get_tables())
 
     bindings = KeyBindings()

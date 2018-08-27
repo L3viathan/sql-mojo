@@ -1,6 +1,8 @@
 import elasticsearch
 
 class ElasticBackend:
+    name = "elasticsearch"
+
     def __init__(self, url):
         self.url = url
         self.client = elasticsearch.Elasticsearch(hosts=url)
@@ -84,3 +86,7 @@ class ElasticBackend:
 
     def get_tables(self):
         return [t["index"] for t in self.client.cat.indices(format="json")]
+
+    @staticmethod
+    def detect(url):
+        return ":9200" in url

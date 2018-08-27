@@ -1,6 +1,8 @@
 from pathlib import Path
 
 class FileSystemBackend:
+    name = "fs"
+
     def __init__(self, basepath):
         self.basepath = Path(basepath).expanduser().absolute()
         self.name = f"file:///{self.basepath}"
@@ -48,3 +50,7 @@ class FileSystemBackend:
         return [
             {field: self.fieldgetter[field](file) for field in fields} for file in files
         ]
+
+    @staticmethod
+    def detect(url):
+        return ":" not in url
