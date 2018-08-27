@@ -10,7 +10,9 @@ class BaseBackend(ABC):
     @classmethod
     def __subclasshook__(cls, C):
         if cls is BaseBackend:
-            if hasattr(C, "query") and hasattr(C, "name"):
+            if all(
+                hasattr(C, attr) for attr in ("query", "name", "get_tables")
+            ):
                 return True
         return NotImplemented
 
@@ -31,7 +33,10 @@ class DummyBackend:
         return url.lower() == "dummy"
 
 
-directories = [Path(os.path.realpath(__file__)).parent]
+directories = [
+    Path(os.path.realpath(__file__)).parent,
+    Path("~/.sql-mojo/plugins/").expanduser(),
+]
 backends = {"dummy": DummyBackend}
 
 for file in itertools.chain.from_iterable(

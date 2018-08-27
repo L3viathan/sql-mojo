@@ -53,4 +53,6 @@ class FileSystemBackend:
 
     @staticmethod
     def detect(url):
-        return ":" not in url
+        if ":" in url:
+            return False
+        return Path(url).exists()
