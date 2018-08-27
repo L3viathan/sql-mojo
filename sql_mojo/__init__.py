@@ -52,7 +52,7 @@ def render(output):
 
     with pager(options="-FRSX") as less:
         if is_flat(output):
-            table = tabulate(*tabularize(output), tablefmt="grid").encode("utf-8")
+            table = tabulate(*tabularize(output), tablefmt="psql").encode("utf-8")
             less.write(table)
         else:
             print_formatted_text(PygmentsTokens(tokens), style=style, file=less)

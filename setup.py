@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="sql-mojo",
-    version="0.0.6",
+    version="0.0.7",
     install_requires=[
         "sql-mojo-parser",
         "elasticsearch",
@@ -10,6 +10,7 @@ setup(
         "python-Levenshtein",
         "pygments",
         "prompt_toolkit>=2.0.0",
+        "tabulate",
     ],
     author="The sql-mojo team",
     author_email="git@l3vi.de",
