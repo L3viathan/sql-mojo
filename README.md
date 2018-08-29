@@ -5,7 +5,7 @@ SQL _all_ the things!
 sql-mojo is a REPL that allows you to interact with a number of backends using an SQL-like syntax.
 The currently available backends are:
 
-- ElasticSearch
+- Elasticsearch
 - file system
 - (and a dummy backend for testing)
 
@@ -21,7 +21,7 @@ inside it (assuming `pip` points to Python 3.7's pip; you may need to use `pip3`
 
 ## Usage
 
-    sql-mojo --type=TYPE --url=URL
+    sql-mojo --type=TYPE URL
 
 `TYPE` can be ommited if sql-mojo can guess the backend from the `URL`, but it is useful in ambiguos cases.
 
