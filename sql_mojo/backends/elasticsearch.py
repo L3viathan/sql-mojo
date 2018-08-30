@@ -75,9 +75,12 @@ class ElasticBackend:
             index, query = self.translate(data)
 
             response = self.client.search(index=index, body=query)
-            result = response.get("aggregations")
-            if result is None:
-                result = response["hits"]["hits"]
+            agg = response.get("aggregations")
+            if agg:
+                agg = agg.popitem()
+                result = [{agg[0]: agg[1]["value"]}]
+            else:
+                result = [hit["_source"] for hit in response["hits"]["hits"]]
 
         except elasticsearch.exceptions.RequestError as exc:
             result = exc.info["error"]["root_cause"][0]["reason"]
