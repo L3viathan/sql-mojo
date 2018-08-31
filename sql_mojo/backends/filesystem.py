@@ -55,4 +55,5 @@ class FileSystemBackend:
     def detect(url):
         if ":" in url:
             return False
-        return Path(url).exists()
+        p = Path(url)
+        return p.exists() and p.is_dir()

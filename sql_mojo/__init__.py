@@ -105,6 +105,7 @@ def main(type, url):
                 continue
 
             ir_dct = yacc.parse(stmt)
+            ir_dct["raw"] = stmt
             result = backend.query(ir_dct)
             render(result)
 
