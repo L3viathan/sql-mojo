@@ -1,2 +1,6 @@
 *.pyc
 .sqlmojo_history
+.pytest_cache/
+build/
+dist/
+sql_mojo.egg-info/
