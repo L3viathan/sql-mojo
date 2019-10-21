@@ -20,7 +20,7 @@ pylint==1.9.2
 pyparsing==2.2.0
 python-Levenshtein==0.12.0
 six==1.11.0
-urllib3==1.22
+urllib3==1.24.2
 wcwidth==0.1.7
 wrapt==1.10.11
 sql-mojo-parser
